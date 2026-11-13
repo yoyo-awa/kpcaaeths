@@ -13,6 +13,8 @@ class Cmd(ProgramTypes): command: str
 class Num(ProgramTypes, StackTypes): data: int
 @dataclass
 class Ptr(ProgramTypes, StackTypes): ptr: int
+class Nil(ProgramTypes, StackTypes): pass
+nil = Nil()
 
 Program = tuple[Cmd, *tuple[StackTypes, ...]]
 
@@ -26,6 +28,7 @@ class Array(HeapTypes):
 
 class Kpcaaeths:
     def __init__(self, src: str):
+        self.labels: dict[int, int] = {}
         self.program: list[tuple[int, Program]] = []
         self.tokens: list[tuple[int, list[str]]] = []
         self.stack: list[StackTypes] = []      # kcats
@@ -55,11 +58,17 @@ class Kpcaaeths:
 
     def parse(self) -> None:
         for lineno, parts in self.tokens:
+            if parts[0] == "lab":
+                n = int(parts[1])
+                self.labels[n] = len(self.program)
+                continue
             if not parts:
                 continue
             self.lineno = lineno
             parsed: list[ProgramTypes] = [Cmd(parts[0])]
             for part in parts[1:]:
+                if part == "nil":
+                    parsed.append(nil)
                 if part.isnumeric():
                     parsed.append(Num(int(part)))
                 elif part.startswith('*') and part[1:].isnumeric():
@@ -134,9 +143,9 @@ class Kpcaaeths:
                     if isinstance(targ, Int):
                         targ.data = value.data
                     elif isinstance(targ, Array):
-                        if len(targ.data) >= targ.length:
+                        if len(targ.data) >= targ.length: # type: ignore
                             self.error("sto: array full")
-                        targ.data.append(value.data)
+                        targ.data.append(value.data) # type: ignore
                     else:
                         self.error(f"sto: unknown target {type(targ).__name__}")
                 case 'sfc':
@@ -153,8 +162,12 @@ class Kpcaaeths:
                     targ = self.heap[ptr.ptr]
                     if isinstance(targ, Int):
                         targ.data = v.data
+                    elif isinstance(targ, Array):
+                        if len(targ.data) >= targ.length: # type: ignore
+                            self.error("sfc: array full")
+                        targ.data.append(v.data) # type: ignore
                     else:
-                        self.error("sfc: target is not Int")
+                        self.error("sfc: target is not Int or Array")
                 case 'op':
                     cmd = self.stack.pop()
                     if not isinstance(cmd, Num):
@@ -169,6 +182,54 @@ class Kpcaaeths:
                                 print(''.join(map(chr, v.data)), end='')
                             elif isinstance(v, Int):
                                 print(chr(v.data), end='')
+                        case 1:
+                            ch = sys.stdin.read(1)
+                            if ch == "":
+                                self.error("op 1: end of input")
+                            self.stack.append(Num(ord(ch)))
+                        case 2:
+                            ch = sys.stdin.read(1)
+                            if ch == "":
+                                self.error("op 2: end of input")
+                            if ch.isdigit():
+                                self.stack.append(Num(int(ch)))
+                            else:
+                                self.stack.append(nil)
+                        case 3:
+                            base = self.stack.pop()
+                            if not isinstance(base, Num):
+                                self.error(f"op 3: expected Num base, got {type(base).__name__}")
+                            if base.data < 2 or base.data > 10:
+                                self.error(f"op 3: base must be 2..10, got {base.data}")
+                            ptr = self.stack.pop()
+                            if not isinstance(ptr, Ptr):
+                                self.error(f"op 3: expected Ptr, got {type(ptr).__name__}")
+                            if ptr.ptr >= len(self.heap):
+                                self.error(f"op 3: heap index {ptr.ptr} out of range")
+                            src = self.heap[ptr.ptr]
+                            if not isinstance(src, Int):
+                                self.error(f"op 3: target is not Int")
+                            if src.data is None:
+                                self.error("op 3: Int has no value")
+
+                            n = src.data
+                            if n == 0:
+                                digits = [48]
+                            else:
+                                negative = n < 0
+                                v = -n if negative else n
+                                digits = []
+                                while v > 0:
+                                    digits.append(48 + v % base.data)
+                                    v //= base.data
+                                if negative:
+                                    digits.append(45)
+                                digits.reverse()
+
+                            arr = Array()
+                            arr.length = len(digits)
+                            arr.data = digits
+                            self.heap.append(arr)
                         case _:
                             self.error(f"op: unknown opcode {cmd.data}")
                 case 'loa':
@@ -197,28 +258,7 @@ class Kpcaaeths:
                     if ptr.ptr >= len(self.heap):
                         self.error(f"fre: heap index {ptr.ptr} out of range")
                     del self.heap[ptr.ptr]
-                case 'giz':
-                    if not args:
-                        self.error("giz: missing target")
-                    target = args[0]
-                    if not isinstance(target, Num):
-                        self.error(f"giz: expected Num, got {type(target).__name__}")
-                    if target.data < 0 or target.data > len(self.program):
-                        self.error(f"giz: target {target.data} out of range")
-                    cond = self.stack.pop()
-                    if not isinstance(cond, Num):
-                        self.error(f"giz: expected Num cond, got {type(cond).__name__}")
-                    if cond.data == 0:
-                        self.pc = target.data
-                case 'gto':
-                    if not args:
-                        self.error("gto: missing target")
-                    target = args[0]
-                    if not isinstance(target, Num):
-                        self.error(f"gto: expected Num, got {type(target).__name__}")
-                    if target.data < 0 or target.data > len(self.program):
-                        self.error(f"gto: target {target.data} out of range")
-                    self.pc = target.data
+
                 case 'add':
                     a = self.stack.pop()
                     b = self.stack.pop()
@@ -245,6 +285,55 @@ class Kpcaaeths:
                     if a.data == 0:
                         self.error("div: division by zero")
                     self.stack.append(Num(b.data // a.data))
+                case 'mod':
+                    a = self.stack.pop()
+                    b = self.stack.pop()
+                    if not isinstance(a, Num) or not isinstance(b, Num):
+                        self.error("mod: expected Num, Num")
+                    if a.data == 0:
+                        self.error("mod: division by zero")
+                    self.stack.append(Num(b.data % a.data))
+                case 'gto':
+                    if not args:
+                        self.error("gto: missing label")
+                    target = args[0]
+                    if not isinstance(target, Num):
+                        self.error(f"gto: expected Num, got {type(target).__name__}")
+                    if target.data not in self.labels:
+                        self.error(f"gto: unknown label {target.data}")
+                    self.pc = self.labels[target.data]
+
+                case 'giz':
+                    if not args:
+                        self.error("giz: missing label")
+                    target = args[0]
+                    if not isinstance(target, Num):
+                        self.error(f"giz: expected Num, got {type(target).__name__}")
+                    if target.data not in self.labels:
+                        self.error(f"giz: unknown label {target.data}")
+                    cond = self.stack.pop()
+                    if not isinstance(cond, Num):
+                        self.error(f"giz: expected Num cond, got {type(cond).__name__}")
+                    if cond.data == 0:
+                        self.pc = self.labels[target.data]
+
+                case 'gin':
+                    if not args:
+                        self.error("gin: missing label")
+                    target = args[0]
+                    if not isinstance(target, Num):
+                        self.error(f"gin: expected Num, got {type(target).__name__}")
+                    if target.data not in self.labels:
+                        self.error(f"gin: unknown label {target.data}")
+                    if self.stack and self.stack[-1] is nil:
+                        self.stack.pop()
+                        self.pc = self.labels[target.data]
+                case 'eq':
+                    a = self.stack.pop()
+                    b = self.stack.pop()
+                    if not isinstance(a, Num) or not isinstance(b, Num):
+                        self.error("eq: expected Num, Num")
+                    self.stack.append(Num(1 if a.data == b.data else 0))
                 case _:
                     self.error(f"unknown command: {head.command}")
 

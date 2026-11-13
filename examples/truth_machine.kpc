@@ -1,0 +1,18 @@
+mk 0; '0 *0
+sto *0 48;
+mk 0; '1 *1
+sto *1 49;
+psh 1;
+op;
+psh 48;
+sub;
+giz 0;
+lab 1;
+psh *1;
+psh 0;
+op;
+gto 1;
+lab 0;
+psh *0;
+psh 0;
+op;
