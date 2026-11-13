@@ -1,0 +1,18 @@
+mk 1;
+len *0 13;
+sto *0 72;
+sto *0 101;
+sto *0 108;
+sto *0 108;
+sto *0 111;
+sto *0 44;
+sto *0 32;
+sto *0 87;
+sto *0 111;
+sto *0 114;
+sto *0 108;
+sto *0 100;
+sto *0 33;
+psh *0;
+psh 0;
+op
