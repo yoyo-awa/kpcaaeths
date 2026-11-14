@@ -249,6 +249,21 @@ class Kpcaaeths:
                         self.stack.append(Ptr(ptr.ptr))
                     else:
                         self.error(f"loa: unknown heap type {type(targ).__name__}")
+                case 'lat':
+                    ptr = self.stack.pop()
+                    if not isinstance(ptr, Ptr):
+                        self.error(f"lat: expected Ptr, got {type(ptr).__name__}")
+                    if ptr.ptr >= len(self.heap):
+                        self.error(f"lat: heap index {ptr.ptr} out of range")
+                    targ = self.heap[ptr.ptr]
+                    if isinstance(targ, Int):
+                        if targ.data is None:
+                            self.error("lat: Int has no value")
+                        self.stack.append(Num(targ.data))
+                    elif isinstance(targ, Array):
+                        self.stack.append(Ptr(ptr.ptr))
+                    else:
+                        self.error(f"lat: unknown heap type {type(targ).__name__}")
                 case 'fre':
                     if not args:
                         self.error("fre: missing ptr")
@@ -293,6 +308,13 @@ class Kpcaaeths:
                     if a.data == 0:
                         self.error("mod: division by zero")
                     self.stack.append(Num(b.data % a.data))
+                case 'ptr':
+                    n = self.stack.pop()
+                    if not isinstance(n, Num):
+                        self.error(f"ptr: expected Num, got {type(n).__name__}")
+                    if n.data < 0:
+                        self.error(f"ptr: negative address {n.data}")
+                    self.stack.append(Ptr(n.data))
                 case 'gto':
                     if not args:
                         self.error("gto: missing label")
@@ -343,6 +365,6 @@ class Kpcaaeths:
 
 if __name__ == '__main__':
     fname = sys.argv[1]
-    with open(fname, 'r') as f:
+    with open(fname, 'r', encoding='utf-8') as f:
         kpca = Kpcaaeths(f.read())
         kpca.run()
