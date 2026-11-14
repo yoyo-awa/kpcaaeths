@@ -1,0 +1,45 @@
+mk 0;              'addr 0: a = 0
+sto *0 0;
+mk 0;              'addr 1: b = 1
+sto *1 1;
+mk 0;              'addr 2: n
+sto *2 0;
+mk 0;              'addr 3: t
+sto *3 0;
+
+lab 0;             'read n
+psh 2;
+op;
+gin 1;
+loa *2;
+psh 10;
+mul;
+add;
+sfc *2;
+gto 0;
+
+lab 1;             'loop
+loa *2;
+giz 2;
+loa *0;
+loa *1;
+add;
+sfc *3;
+loa *1;
+sfc *0;
+loa *3;
+sfc *1;
+loa *2;
+psh 1;
+sub;
+sfc *2;
+gto 1;
+
+lab 2;             'print a
+psh *0;
+psh 10;
+psh 3;
+op;
+psh *4;
+psh 0;
+op

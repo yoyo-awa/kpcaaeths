@@ -52,3 +52,10 @@ gto 18;
 ```
 
 Outputs `Hello, World!` ten times.
+
+## Download
+
+From [Releases](https://github.com/yoyo-awa/kpcaaeths/releases):
+
+- **Windows**: download `kpcaa.exe`, run `kpcaa.exe examples\helloworld.kpc`
+- **Linux/macOS**: download `kpcaa.py`, run `python kpcaa.py examples/helloworld.kpc`
